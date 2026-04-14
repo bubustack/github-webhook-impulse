@@ -1,0 +1,165 @@
+apiVersion: catalog.bubustack.io/v1alpha1
+kind: ImpulseTemplate
+metadata:
+  name: github-webhook-impulse
+  annotations:
+    registry.bubustack.io/maturity: experimental
+spec:
+  version: 0.1.0
+  description: |
+    A GitHub webhook impulse that triggers StoryRuns on GitHub events.
+    Supports signature validation, event filtering, and session management
+    keyed by PR/issue/commit for stateful workflows.
+  image: ghcr.io/bubustack/github-webhook-impulse:0.1.0
+  supportedModes:
+    - deployment
+
+  configSchema:
+    type: object
+    properties:
+      path:
+        type: string
+        description: HTTP path to listen for webhooks.
+        default: /webhook
+      
+      validateSignature:
+        type: boolean
+        description: Whether to validate GitHub webhook signatures (recommended for production).
+        default: true
+      
+      eventsAllowlist:
+        type: array
+        description: |
+          List of GitHub event types to accept. If empty, all events are accepted.
+          Common events: push, pull_request, issues, issue_comment, release, 
+          workflow_run, check_run, deployment, etc.
+        items:
+          type: string
+      
+      actionsAllowlist:
+        type: array
+        description: |
+          List of action types to accept (e.g., opened, closed, labeled, synchronize).
+          If empty, all actions are accepted.
+        items:
+          type: string
+      
+      repositoriesAllowlist:
+        type: array
+        description: |
+          List of repository full names to accept (e.g., "owner/repo").
+          If empty, all repositories are accepted.
+        items:
+          type: string
+      
+      branchesAllowlist:
+        type: array
+        description: |
+          List of branch names to accept for push/pull_request events.
+          Supports glob patterns (e.g., "main", "release/*").
+        items:
+          type: string
+      
+      sessionKeyStrategy:
+        type: string
+        description: |
+          Strategy for generating session keys for StoryRun deduplication:
+          - auto: Automatically detect based on event type (PR number, issue number, etc.)
+          - delivery: Use X-GitHub-Delivery header (unique per webhook)
+          - custom: Use a template expression from sessionKeyExpression
+        enum:
+          - auto
+          - delivery
+          - custom
+        default: auto
+      
+      sessionKeyExpression:
+        type: string
+        description: |
+          Template expression for custom session key generation.
+          Available variables: .event (type), .action, .deliveryId, .repository, .payload.
+          Example: 'printf "%s-pr-%v" .repository.full_name .payload.pull_request.number'
+      
+      policies:
+        type: array
+        description: |
+          Advanced routing policies. Each policy can override the target story
+          based on event conditions.
+        items:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Policy name for logging.
+              required: true
+            events:
+              type: array
+              description: Events this policy matches.
+              items:
+                type: string
+            actions:
+              type: array
+              description: Actions this policy matches.
+              items:
+                type: string
+            repositories:
+              type: array
+              description: Repositories this policy matches.
+              items:
+                type: string
+            branches:
+              type: array
+              description: Branches this policy matches.
+              items:
+                type: string
+            condition:
+              type: string
+              description: Template expression for additional filtering. Use root-dot access such as '.payload.pull_request.merged'.
+            storyName:
+              type: string
+              description: Override story to trigger for this policy.
+            inputsTransform:
+              type: object
+              description: Additional inputs to merge for this policy.
+      
+      includeRawPayload:
+        type: boolean
+        description: Whether to include the full raw payload in StoryRun inputs.
+        default: false
+      
+      startEvents:
+        type: array
+        description: |
+          Events that start a new session (e.g., ["pull_request:opened"]).
+          Format: "event_type" or "event_type:action".
+        items:
+          type: string
+      
+      endEvents:
+        type: array
+        description: |
+          Events that end a session (e.g., ["pull_request:closed", "pull_request:merged"]).
+          Triggers StoryDispatcher.Stop() for graceful cleanup.
+        items:
+          type: string
+
+  secretSchema:
+    webhookSecret:
+      description: |
+        GitHub webhook secret for signature validation.
+        Must contain a 'WEBHOOK_SECRET' key.
+      expectedKeys:
+        - WEBHOOK_SECRET
+      required: false
+
+  execution:
+    service:
+      ports:
+        - name: http
+          protocol: TCP
+          port: 8080
+          targetPort: 8080
+        - name: health
+          protocol: TCP
+          port: 8081
+          targetPort: 8081
