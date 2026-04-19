@@ -5,12 +5,12 @@ metadata:
   annotations:
     registry.bubustack.io/maturity: experimental
 spec:
-  version: 0.1.0 # x-release-please-version
+  version: 0.1.1 # x-release-please-version
   description: |
     A GitHub webhook impulse that triggers StoryRuns on GitHub events.
     Supports signature validation, event filtering, and session management
     keyed by PR/issue/commit for stateful workflows.
-  image: ghcr.io/bubustack/github-webhook-impulse:0.1.0 # x-release-please-version
+  image: ghcr.io/bubustack/github-webhook-impulse:0.1.1 # x-release-please-version
   supportedModes:
     - deployment
 
